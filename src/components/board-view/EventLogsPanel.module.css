@@ -1,0 +1,69 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filterBtn {
+  padding: 6px 12px;
+  border: 1px solid var(--konnectify-border);
+  border-radius: 6px;
+  background: var(--konnectify-surface);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--konnectify-text-secondary);
+}
+
+.filterBtn.active {
+  border-color: var(--konnectify-primary);
+  color: var(--konnectify-primary);
+  background: #f0f0ff;
+}
+
+.logHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.logBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.details {
+  background: #f3f4f6;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.loader {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.iframeFull {
+  width: 100%;
+  height: 600px;
+  border: 1px solid var(--konnectify-border);
+  border-radius: 8px;
+}

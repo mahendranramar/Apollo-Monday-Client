@@ -1,0 +1,32 @@
+{
+  "app": {
+    "name": "Konnectify iPaaS Integration",
+    "description": "Integrate your workflows with external systems through Konnectify iPaaS",
+    "version": "1.0.0",
+    "icon": "https://cdn.monday.com/public/images/monday-logo-icon.svg",
+    "supportEmail": "support@konnectify.co"
+  },
+  "permissions": [
+    "me:read",
+    "users:read",
+    "app_store",
+    "app_store_extension:install"
+  ],
+  "features": {
+    "account_settings": {
+      "id": "account-settings",
+      "label": "Konnectify Settings",
+      "url": "/account-settings"
+    }
+  },
+  "views": {
+    "board": {
+      "id": "board-view",
+      "label": "Konnectify Workflows",
+      "url": "/board-view"
+    }
+  },
+  "oauth": {
+    "enabled": false
+  }
+}

@@ -1,0 +1,44 @@
+.layout {
+  min-height: 100%;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.bodyWithSidebar {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.body {
+  display: block;
+}
+
+.content {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .bodyWithSidebar {
+    grid-template-columns: 1fr;
+  }
+}

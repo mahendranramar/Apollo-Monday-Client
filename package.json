@@ -1,0 +1,36 @@
+{
+  "name": "monday-konnectify-app",
+  "version": "1.0.0",
+  "description": "Monday.com app for Konnectify iPaaS integration",
+  "type": "module",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run expose\"",
+    "init": "mapps init -l",
+    "server": "vite",
+    "build": "vite build",
+    "expose": "mapps tunnel:create -p 3000",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "deploy:build": "vite build",
+    "deploy:push": "mapps code:push --client-side -d \"dist\"",
+    "deploy": "npm run deploy:build && npm run deploy:push"
+  },
+  "dependencies": {
+    "@vibe/core": "^4.3.0",
+    "axios": "^1.6.0",
+    "monday-sdk-js": "^0.5.9",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.30.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "concurrently": "^9.0.0",
+    "rollup": "^4.62.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}

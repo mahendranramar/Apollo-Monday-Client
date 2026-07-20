@@ -1,0 +1,147 @@
+{
+  "name": "react-inlinesvg",
+  "version": "4.5.0",
+  "description": "An SVG loader for React",
+  "author": "Gil Barbara <gilbarbara@gmail.com>",
+  "contributors": [
+    {
+      "name": "Matthew Dapena-Tretter",
+      "email": "m@tthewwithanm.com"
+    }
+  ],
+  "keywords": [
+    "react",
+    "svg"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/gilbarbara/react-inlinesvg.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gilbarbara/react-inlinesvg/issues"
+  },
+  "homepage": "https://github.com/gilbarbara/react-inlinesvg#readme",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./provider": {
+      "import": {
+        "types": "./dist/provider.d.mts",
+        "default": "./dist/provider.mjs"
+      },
+      "require": {
+        "types": "./dist/provider.d.cts",
+        "default": "./dist/provider.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "typesVersions": {
+    "*": {
+      "provider": [
+        "dist/provider.d.cts"
+      ]
+    }
+  },
+  "types": "./dist/index.d.cts",
+  "sideEffects": false,
+  "peerDependencies": {
+    "react": "16.8 - 19"
+  },
+  "dependencies": {
+    "react-from-dom": "^0.7.5"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.4",
+    "@gilbarbara/eslint-config": "^1.2.3",
+    "@gilbarbara/prettier-config": "^1.0.0",
+    "@gilbarbara/tsconfig": "^1.0.0",
+    "@size-limit/preset-small-lib": "^12.1.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.9",
+    "browser-cache-mock": "^0.1.7",
+    "eslint": "^9.39.4",
+    "http-server": "^14.1.1",
+    "husky": "^9.1.7",
+    "jest-extended": "^7.0.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.9.3",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "repo-tools": "^0.3.1",
+    "size-limit": "^12.1.0",
+    "start-server-and-test": "^3.0.11",
+    "ts-node": "^10.9.2",
+    "tsdown": "^0.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
+    "vitest-fetch-mock": "^0.4.5"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "watch": "tsdown --watch",
+    "lint": "eslint --fix src test",
+    "start": "http-server test/__fixtures__ -p 1337 --cors",
+    "test": "start-server-and-test start http://127.0.0.1:1337 test:coverage",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest watch",
+    "typecheck": "tsc -p test/tsconfig.json",
+    "typevalidation": "attw -P",
+    "size": "size-limit",
+    "validate": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run size && npm run typevalidation",
+    "format": "prettier \"**/*.{js,jsx,json,yml,yaml,css,less,scss,ts,tsx,md,graphql,mdx}\" --write",
+    "prepublishOnly": "pnpm run validate",
+    "prepare": "husky"
+  },
+  "tsdown": {
+    "banner": {
+      "js": "\"use client\";"
+    },
+    "entry": [
+      "src/index.tsx",
+      "src/provider.tsx"
+    ],
+    "format": [
+      "cjs",
+      "esm"
+    ],
+    "outputOptions": {
+      "exports": "named"
+    },
+    "sourcemap": true,
+    "splitting": false
+  },
+  "prettier": "@gilbarbara/prettier-config",
+  "size-limit": [
+    {
+      "name": "commonjs",
+      "path": "./dist/index.cjs",
+      "limit": "10 KB"
+    },
+    {
+      "name": "esm",
+      "path": "./dist/index.mjs",
+      "limit": "10 KB"
+    }
+  ],
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b"
+}

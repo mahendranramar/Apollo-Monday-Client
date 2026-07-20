@@ -1,0 +1,46 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px;
+  gap: 20px;
+}
+
+.loaderWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 64px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-text-color, #323338);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--secondary-text-color, #676879);
+}
+
+.tabsWrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel {
+  padding-top: 16px;
+  height: 100%;
+}
