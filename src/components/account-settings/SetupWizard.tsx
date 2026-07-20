@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Button, Loader, Text } from "@vibe/core";
 import { Check, Email, Globe, Locked, Person, Warning } from "@vibe/icons";
 import { useKonnectify } from "../../hooks";
-import { APP_IDS, SECONDARY_APP, templateFolderId } from "../../constants";
+import { APP_IDS, SECONDARY_APP, templateFolderId, WORKFLOW_TEMPLATES } from "../../constants";
 import { connectionService } from "../../services/connectionService";
 import {storageService} from "../../services/storageService";
 import styles from "./SetupWizard.module.css";
@@ -11,7 +11,7 @@ import mondaySdk from "monday-sdk-js";
 import type { SecondaryAppCredentials } from "../../types";
 const monday = mondaySdk();
 
-// SECONDARY_APP (the app paired with Monday — currently Chargebee) now lives
+// SECONDARY_APP (the app paired with Monday — currently Reply.io) now lives
 // in ../../constants.ts. That's the ONLY place to edit to swap the secondary
 // app, since storageService.ts also needs it (a service can't import from a
 // component file, so the shared config has to live in constants).
@@ -714,7 +714,7 @@ const MondayStep: React.FC<MondayStepProps> = ({ onConnect, submitting, error, i
 };
 
 // ─── SecondaryAppStep ────────────────────────────────────────────────────────
-// Generic step for whatever SECONDARY_APP is currently configured (Chargebee
+// Generic step for whatever SECONDARY_APP is currently configured (Reply.io
 // today). All copy/labels come from SECONDARY_APP — nothing app-specific
 // is hardcoded here.
 
@@ -818,9 +818,12 @@ const TemplatesStep: React.FC<TemplatesStepProps> = ({
         <div>
           <p className={styles.infoTitle}>Ready to Install</p>
           <p className={styles.infoText}>
-            Two workflow templates will be installed:
-            <br />• <strong>Create Deal for New Chargebee Subscription</strong> — When a subscription is created in Chargebee, create or find the contact in Monday and add the subscription to the Deals group.
-            <br />• <strong>Mark Deal as Churn on Chargebee Subscription Cancellation</strong> — When a subscription is canceled in Chargebee, update the corresponding deal in Monday to Lost or Churned.
+            {WORKFLOW_TEMPLATES.length} workflow templates will be installed:
+            {WORKFLOW_TEMPLATES.map((template) => (
+              <React.Fragment key={`${template.id}-${template.name}`}>
+                <br />• <strong>{template.name}</strong> — {template.description}
+              </React.Fragment>
+            ))}
           </p>
         </div>
       </div>

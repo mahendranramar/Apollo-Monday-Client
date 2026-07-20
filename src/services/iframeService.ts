@@ -1,4 +1,4 @@
-import { APP_IDS, ROOT_DOMAIN, UI_PATH } from "../constants";
+import { APP_IDS, ROOT_DOMAIN, SECONDARY_APP, UI_PATH } from "../constants";
 import type { IframeDestination } from "../types";
 
 const UI_ROOT = `${ROOT_DOMAIN}${UI_PATH}`;
@@ -19,7 +19,7 @@ export class IframeService {
     }
 
     params.append("app", APP_IDS.monday);
-    params.append("app", APP_IDS.chargebee);
+    params.append("app", SECONDARY_APP.appId);
 
     if (extraParams) {
       Object.entries(extraParams).forEach(([key, value]) => {
