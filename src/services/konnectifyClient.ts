@@ -1,13 +1,22 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { ROOT_DOMAIN } from "../constants";
-import type { AuthState, Connection, Workflow, BillingInfo, BillingSummary, Billing, TaskUsage, BillingCredits } from "../types";
+import type {
+  AuthState,
+  Connection,
+  Workflow,
+  BillingInfo,
+  BillingSummary,
+  Billing,
+  TaskUsage,
+  BillingCredits,
+} from "../types";
 
 export interface KonnectifyClientConfig {
   domain: string;
   token?: string;
 }
 
-const baseUrl = "https://f045c-service-35433930-c76495db.us.monday.app"; // backend
+const baseUrl = "https://beebc-service-36021638-d3cea4e1.au.monday.app"; // backend
 
 export class KonnectifyClient {
   private axiosInstance: AxiosInstance;
@@ -43,42 +52,37 @@ export class KonnectifyClient {
     accountId?: string,
     appId?: string
   ): Promise<AuthState> {
-    const response = await axios.post<{ accessToken: string }>(
-      `${baseUrl}/api/user/register`,
-      {
-        domain: `${this.config.domain}${ROOT_DOMAIN}`,
-        email,
-        password,
-        name,
-        website: website || "",
-        orgId,
-        projectId,
-        accountId,
-        appId
-      },
-    );
+    const response = await axios.post<{ accessToken: string }>(`${baseUrl}/api/user/register`, {
+      domain: `${this.config.domain}${ROOT_DOMAIN}`,
+      email,
+      password,
+      name,
+      website: website || "",
+      orgId,
+      projectId,
+      accountId,
+      appId,
+    });
     return { accessToken: response.data.accessToken, email };
   }
 
   async getBootstrapToken(email: string, password: string): Promise<string> {
-    const response = await axios.post<{ token: string }>(
-      `${baseUrl}/api/user/auth/bootstrap-token`,
-      { email, password, domain:this.config.domain },
-    );
+    const response = await axios.post<{ token: string }>(`${baseUrl}/api/user/auth/bootstrap-token`, {
+      email,
+      password,
+      domain: this.config.domain,
+    });
     // The response has both `token` (120s bootstrap token for iframes) and
     // `accessToken` (long-lived service token). We only want the bootstrap token here.
     return response.data.token;
   }
 
-  async login(
-    email: string,
-    password: string,
-    orgId: string,
-  ): Promise<AuthState> {
-    const response = await axios.post<{ accessToken: string }>(
-      `${baseUrl}/api/user/login`,
-      { email, password, domain:this.config.domain },
-    );
+  async login(email: string, password: string, orgId: string): Promise<AuthState> {
+    const response = await axios.post<{ accessToken: string }>(`${baseUrl}/api/user/login`, {
+      email,
+      password,
+      domain: this.config.domain,
+    });
     return { accessToken: response.data.accessToken, email };
   }
 
@@ -86,7 +90,7 @@ export class KonnectifyClient {
     try {
       await this.axiosInstance.post("/user/session", {
         domain: this.config.domain,
-        token: this.config.token
+        token: this.config.token,
       });
       return true;
     } catch {
@@ -96,26 +100,22 @@ export class KonnectifyClient {
 
   async logout(): Promise<void> {
     try {
-      await this.axiosInstance.post("/user/logout", {domain: this.config.domain, token: this.config.token});
+      await this.axiosInstance.post("/user/logout", { domain: this.config.domain, token: this.config.token });
     } catch (error) {
       console.error("Logout error:", error);
     }
   }
 
-  async installKonnectorFromTemplate(
-    templateId: number,
-  ): Promise<string | null> {
-     const response = await this.axiosInstance.post<{
+  async installKonnectorFromTemplate(templateId: number): Promise<string | null> {
+    const response = await this.axiosInstance.post<{
       message: string;
       connectorFolderId: string;
       connectors: {
-      connectorId: string;
-      connectorName: string;
+        connectorId: string;
+        connectorName: string;
       }[];
-    }>(
-      `/connector/template/install`, {templateId, token:this.config.token, domain:this.config.domain}
-    );
-    return response.data.connectors[0].connectorId
+    }>(`/connector/template/install`, { templateId, token: this.config.token, domain: this.config.domain });
+    return response.data.connectors[0].connectorId;
   }
 
   async listWorkflows(pageSize = 50, pageNumber = 1): Promise<Workflow[]> {
@@ -123,7 +123,8 @@ export class KonnectifyClient {
       data?: { list?: Record<string, unknown>[] };
       list?: Record<string, unknown>[];
     }>(`/connector/connectors?pageSize=${pageSize}&pageNumber=${pageNumber}`, {
-      token:this.config.token, domain:this.config.domain
+      token: this.config.token,
+      domain: this.config.domain,
     });
 
     const items = response.data?.data?.list || response.data?.list || [];
@@ -144,14 +145,14 @@ export class KonnectifyClient {
   async activateWorkflow(workflowId: string): Promise<void> {
     await this.axiosInstance.post(`/connector/${workflowId}/activate`, {
       domain: this.config.domain,
-      token: this.config.token
+      token: this.config.token,
     });
   }
 
   async deactivateWorkflow(workflowId: string): Promise<void> {
     await this.axiosInstance.post(`/connector/${workflowId}/deactivate`, {
       domain: this.config.domain,
-      token: this.config.token
+      token: this.config.token,
     });
   }
 
@@ -160,7 +161,8 @@ export class KonnectifyClient {
       data?: { list?: Record<string, unknown>[] };
       list?: Record<string, unknown>[];
     }>(`/connector/connections?pageSize=${pageSize}&pageNumber=${pageNumber}`, {
-      token:this.config.token, domain:this.config.domain
+      token: this.config.token,
+      domain: this.config.domain,
     });
 
     const items = response.data?.data?.list || response.data?.list || [];
@@ -174,25 +176,20 @@ export class KonnectifyClient {
       connectedUser: item.connectedUser
         ? String(item.connectedUser)
         : item.userEmail
-          ? String(item.userEmail)
-          : undefined,
+        ? String(item.userEmail)
+        : undefined,
       updatedAt: item.updatedAt ? String(item.updatedAt) : undefined,
       createdAt: item.createdAt ? String(item.createdAt) : undefined,
     }));
   }
 
-  async createConnection(
-    appId: string,
-    name: string,
-    data: Record<string, unknown>,
-  ): Promise<Connection> {
-
+  async createConnection(appId: string, name: string, data: Record<string, unknown>): Promise<Connection> {
     const response = await this.axiosInstance.post<Connection>("/connector/connection", {
       appId,
       name,
       data,
       token: this.config.token,
-      domain: this.config.domain
+      domain: this.config.domain,
     });
     return response.data;
   }
@@ -201,19 +198,15 @@ export class KonnectifyClient {
     connectionId: string,
     appId: string,
     name: string,
-    data: Record<string, unknown>,
+    data: Record<string, unknown>
   ): Promise<Connection> {
-
-    const response = await this.axiosInstance.post<Connection>(
-      `/connector/connection/${connectionId}/update`,
-      {
-        appId,
-        name,
-        data,
-        token: this.config.token,
-        domain: this.config.domain
-      },
-    );
+    const response = await this.axiosInstance.post<Connection>(`/connector/connection/${connectionId}/update`, {
+      appId,
+      name,
+      data,
+      token: this.config.token,
+      domain: this.config.domain,
+    });
     return response.data;
   }
 
@@ -221,26 +214,23 @@ export class KonnectifyClient {
     connectionId: string,
     appId: string,
     name: string,
-    data: Record<string, unknown>,
+    data: Record<string, unknown>
   ): Promise<Connection> {
-
-    const response = await this.axiosInstance.post<Connection>(
-      `/connector/connection/${connectionId}/edit`,
-      { appId, name, data, 
-        token: this.config.token,
-        domain: this.config.domain
-      },
-    );
+    const response = await this.axiosInstance.post<Connection>(`/connector/connection/${connectionId}/edit`, {
+      appId,
+      name,
+      data,
+      token: this.config.token,
+      domain: this.config.domain,
+    });
     return response.data;
   }
 
   async deleteConnection(connectionId: string): Promise<void> {
-    const response = await this.axiosInstance.post(`/connector/connection/${connectionId}/delete`, 
-      { 
-        token: this.config.token,
-        domain: this.config.domain
-      },
-    )
+    const response = await this.axiosInstance.post(`/connector/connection/${connectionId}/delete`, {
+      token: this.config.token,
+      domain: this.config.domain,
+    });
   }
 
   async getOAuthAuthUrl(
@@ -253,76 +243,73 @@ export class KonnectifyClient {
     const token = this.config.token;
     let body;
 
-    if(connectionId && isEditing){
+    if (connectionId && isEditing) {
       body = {
         connectionName: connectionName,
         id: connectionId,
         authUrl,
-        token
-      }
+        token,
+      };
     } else {
       body = {
         connectionName: connectionName,
         authUrl,
-        token
-      }
+        token,
+      };
     }
-    
+
     const response = await this.axiosInstance.post<{
-  data: {
-    data: {
-      authUrl: string;
-      state: string;
-    };
-  };
-}>("/user/auth-url", body);
+      data: {
+        data: {
+          authUrl: string;
+          state: string;
+        };
+      };
+    }>("/user/auth-url", body);
     return response.data.data.data;
   }
 
+  async getBillingInfo2(): Promise<BillingSummary> {
+    const response = await this.axiosInstance.post<{
+      data: {
+        billing: Billing;
+        scheduled?: Record<string, unknown>;
+        inTrial?: boolean;
+        task?: TaskUsage;
+        overAge?: { total: number | null; consumed: number | null };
+      };
+    }>("/user/billing/plans", {
+      token: this.config.token,
+      domain: this.config.domain,
+    });
 
-async getBillingInfo2(): Promise<BillingSummary> {
-  const response = await this.axiosInstance.post<{
-    data: {
-      billing: Billing;
-      scheduled?: Record<string, unknown>;
-      inTrial?: boolean;
-      task?: TaskUsage;
-      overAge?: { total: number | null; consumed: number | null };
+    const result = response.data.data;
+
+    return {
+      billing: result.billing,
+      scheduled: result.scheduled,
+      inTrial: result.inTrial ?? false,
+      task: result.task, // will be undefined for now — that's fine, it's optional
+      overAge: result.overAge,
     };
-  }>("/user/billing/plans", {
-    token: this.config.token,
-    domain: this.config.domain,
-  });
-  
+  }
 
-  const result = response.data.data;
+  async getBillingCredits(): Promise<BillingCredits> {
+    const response = await this.axiosInstance.post<{
+      total: number;
+      used: number;
+      remaining: number;
+      overageUsed: number;
+      periodEnd: Date;
+    }>("/user/billing/credits", {
+      token: this.config.token,
+      domain: this.config.domain,
+    });
 
-  return {
-    billing: result.billing,
-    scheduled: result.scheduled,
-    inTrial: result.inTrial ?? false,
-    task: result.task,       // will be undefined for now — that's fine, it's optional
-    overAge: result.overAge,
-  };
-}
-
-async getBillingCredits(): Promise<BillingCredits> {
-  const response = await this.axiosInstance.post<{
-    "total": number,
-    "used": number,
-    "remaining": number,
-    "overageUsed": number,
-    "periodEnd": Date
-  }>("/user/billing/credits", {
-    token: this.config.token,
-    domain: this.config.domain,
-  });
-
-  return response.data
-}
+    return response.data;
+  }
 
   async getBillingInfo(): Promise<BillingInfo> {
-
     const response = await this.axiosInstance.post<{
       inTrial?: boolean;
       billing?: {
@@ -335,13 +322,10 @@ async getBillingCredits(): Promise<BillingCredits> {
       task?: Record<string, number>;
     }>("/user/billing/plans", {
       token: this.config.token,
-      domain: this.config.domain
+      domain: this.config.domain,
     });
     const result = response.data;
-    const date =
-      result.inTrial === false
-        ? result?.billing?.subscriptionEnd
-        : result?.billing?.trialEnd;
+    const date = result.inTrial === false ? result?.billing?.subscriptionEnd : result?.billing?.trialEnd;
 
     return {
       plan: result?.billing?.plan || "-",
@@ -364,10 +348,7 @@ async getBillingCredits(): Promise<BillingCredits> {
 
   handleError(context: string, error: unknown): never {
     const axiosError = error as AxiosError<{ message?: string }>;
-    const errorMessage =
-      axiosError.response?.data?.message ||
-      axiosError.message ||
-      "Unknown error";
+    const errorMessage = axiosError.response?.data?.message || axiosError.message || "Unknown error";
 
     console.error(`${context} error:`, errorMessage);
     throw new Error(errorMessage);
