@@ -39,7 +39,7 @@ interface KonnectifyContextValue {
   templates: WorkflowTemplate[];
   metrics: DashboardMetrics | null;
   setupProgress: SetupProgress;
-  login: (domain: string, email: string, password: string) => Promise<void>;
+//  login: (domain: string, email: string, password: string) => Promise<void>;
   registerUser: (
     domain: string,
     email: string,
@@ -168,30 +168,30 @@ export function KonnectifyProvider({ children }: { children: React.ReactNode }) 
   
   }, [client, workflows, connections, billing, refreshWorkflows, refreshConnections, refreshBilling, refreshTemplates]);
 
-  const login = useCallback(
-    async (domain: string, email: string, password: string) => {
-      setLoading(true);
-      setError(null);
-      try {
+  // const login = useCallback(
+  //   async (domain: string, email: string, password: string) => {
+  //     setLoading(true);
+  //     setError(null);
+  //     try {
         
-        const result = await authService.login(domain, email, password);
-        sessionStorage.setItem("konnectify_session_password", password);
-        setClient(result.client);
-        setAuth(result.auth);
-        setTenant(await tenantService.getTenant());
-        await tenantService.markStepComplete(1);
-        await refreshConnections();
-        const progress = await tenantService.getSetupProgress();
-        setSetupProgress(progress);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Login failed");
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [refreshConnections],
-  );
+  //       const result = await authService.login(domain, email, password);
+  //       sessionStorage.setItem("konnectify_session_password", password);
+  //       setClient(result.client);
+  //       setAuth(result.auth);
+  //       setTenant(await tenantService.getTenant());
+  //       await tenantService.markStepComplete(1);
+  //       await refreshConnections();
+  //       const progress = await tenantService.getSetupProgress();
+  //       setSetupProgress(progress);
+  //     } catch (err) {
+  //       setError(err instanceof Error ? err.message : "Login failed");
+  //       throw err;
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   },
+  //   [refreshConnections],
+  // );
 
   const registerUser = useCallback(
     async (
@@ -269,7 +269,7 @@ export function KonnectifyProvider({ children }: { children: React.ReactNode }) 
       templates,
       metrics,
       setupProgress,
-      login,
+      // login,
       registerUser,
       logout,
       refreshWorkflows,
@@ -294,7 +294,7 @@ export function KonnectifyProvider({ children }: { children: React.ReactNode }) 
       templates,
       metrics,
       setupProgress,
-      login,
+      // login,
       registerUser, 
       logout,
       refreshWorkflows,

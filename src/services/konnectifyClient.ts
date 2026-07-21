@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
-import { ROOT_DOMAIN } from "../constants";
+import { orgId, ROOT_DOMAIN } from "../constants";
 import type {
   AuthState,
   Connection,
@@ -10,13 +10,14 @@ import type {
   TaskUsage,
   BillingCredits,
 } from "../types";
+import { storageService } from "./storageService";
 
 export interface KonnectifyClientConfig {
   domain: string;
   token?: string;
 }
 
-const baseUrl = "https://dbbc7-service-36021638-d3cea4e1.au.monday.app"; // backend
+const baseUrl = "https://fa286-service-36109712-ba7ff864.au.monday.app"; // backend
 
 export class KonnectifyClient {
   private axiosInstance: AxiosInstance;
@@ -28,6 +29,31 @@ export class KonnectifyClient {
       baseURL: ` ${baseUrl}/api`,
       headers: { "Content-Type": "application/json" },
     });
+    // handle access token expiry
+    this.axiosInstance.interceptors.response.use(
+      (res) => res,
+      async (error) => {
+        console.log("api failed", error);
+        const original = error.config;
+        if (error.response?.status === 401 && !original._retry) {
+          original._retry = true;
+          const tenant = await storageService.getTenant();
+          const email = tenant?.email ? tenant.email : "";
+          const password = tenant?.password ? tenant.password : "";
+          if (email && password) {
+            const fresh = await this.login(email, password, orgId);
+            this.setAuthToken(fresh.accessToken);
+            await storageService.setAuth(fresh);
+            original.data = JSON.parse(original.data || "{}");
+            original.data.token = fresh.accessToken;
+            original.data = JSON.stringify(original.data);
+            console.log("failed api call's payload with fresh access token", original.data);
+            return this.axiosInstance(original);
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
 
     if (config.token) {
       this.setAuthToken(config.token);

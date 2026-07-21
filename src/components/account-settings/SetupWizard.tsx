@@ -4,9 +4,9 @@ import { Check, Email, Globe, Locked, Person, Warning } from "@vibe/icons";
 import { useKonnectify } from "../../hooks";
 import { APP_IDS, SECONDARY_APP, templateFolderId, WORKFLOW_TEMPLATES } from "../../constants";
 import { connectionService } from "../../services/connectionService";
-import {storageService} from "../../services/storageService";
+import { storageService } from "../../services/storageService";
 import styles from "./SetupWizard.module.css";
-import axios from 'axios';
+import axios from "axios";
 import mondaySdk from "monday-sdk-js";
 import type { SecondaryAppCredentials } from "../../types";
 const monday = mondaySdk();
@@ -39,14 +39,14 @@ const STEP_NUMBER_TO_ID: Record<number, Step> = {
 export const SetupWizard: React.FC = () => {
   const {
     client,
-    login,
+    //  login,
     registerUser,
     isConfigured,
     loading: contextLoading,
     updateSetupProgress,
     refreshConnections,
     setupProgress,
-    connections
+    connections,
   } = useKonnectify();
   // client is used in step handlers (handleMondayConnect, handleSecondaryAppConnect)
 
@@ -73,18 +73,20 @@ export const SetupWizard: React.FC = () => {
     name: "",
     website: "",
     accountId: "",
-    appId: ""
+    appId: "",
   });
   const [mondayApiToken, setMondayApiToken] = useState("");
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const [secondaryAppCredentials, setSecondaryAppCredentials] = useState<SecondaryAppCredentials>({ api_key: "" });
 
   const prefillSecondaryAppCredentials = async () => {
-    const fsCredentials = await storageService.getSecondaryAppCredentials() as (SecondaryAppCredentials & { apikey?: string }) | null;
-    if(fsCredentials){
+    const fsCredentials = (await storageService.getSecondaryAppCredentials()) as
+      | (SecondaryAppCredentials & { apikey?: string })
+      | null;
+    if (fsCredentials) {
       setSecondaryAppCredentials({ api_key: fsCredentials.api_key ?? fsCredentials.apikey ?? "" });
     }
-  }
+  };
 
   const oauthWindowRef = useRef<Window | null>(null);
   const wasConfiguredRef = useRef(isConfigured);
@@ -92,152 +94,136 @@ export const SetupWizard: React.FC = () => {
   const [isSecondaryAppConnected, setIsSecondaryAppConnected] = useState(false);
 
   useEffect(() => {
-  const handler = async (event: MessageEvent) => {
-    if (event.data?.type !== "oauth-success") return;
-    if (oauthWindowRef.current && !oauthWindowRef.current.closed) {
-      oauthWindowRef.current.close();
-    }
-    oauthWindowRef.current = null; // marks this as the success path for the poller
+    const handler = async (event: MessageEvent) => {
+      if (event.data?.type !== "oauth-success") return;
+      if (oauthWindowRef.current && !oauthWindowRef.current.closed) {
+        oauthWindowRef.current.close();
+      }
+      oauthWindowRef.current = null; // marks this as the success path for the poller
 
-    try {
-      await refreshConnections();
+      try {
+        await refreshConnections();
 
-      const newCompleted = Array.from(
-        new Set([...(setupProgress.completedSteps ?? []), 2])
-      );
+        const newCompleted = Array.from(new Set([...(setupProgress.completedSteps ?? []), 2]));
 
-      await updateSetupProgress({
-        currentStep: 3,
-        completedSteps: newCompleted,
-      });
+        await updateSetupProgress({
+          currentStep: 3,
+          completedSteps: newCompleted,
+        });
 
-      setIsMondayConnected(true);
-      advance("monday");
-    } finally {
-      setSubmitting(false); // only now, once the step has actually advanced
-    }
-  };
-
-  window.addEventListener("message", handler);
-  return () => window.removeEventListener("message", handler);
-}, [refreshConnections, setupProgress, updateSetupProgress]);
-
-
-// Reset the wizard whenever the user logs out. `isConfigured` flips from
-// true -> false in KonnectifyProvider.logout(), but that only clears
-// context state — none of SetupWizard's own local state (currentStep,
-// completed, furthestStep, forms, etc). Without this, `initialized` stays
-// true forever (it's only ever set once, in loadContext), so the
-// restore-position effect never runs again and the wizard stays stuck on
-// whatever step/screen it was on when logout was clicked.
-useEffect(() => {
-  if (wasConfiguredRef.current && !isConfigured) {
-    setCurrentStep("auth");
-    setFurthestStep("auth");
-    setCompleted(new Set<Step>());
-    setErrors({ auth: "", monday: "", [SECONDARY_APP.key]: "", templates: "" });
-    setAuthForm({
-      domain: "",
-      email: "",
-      password: "",
-      name: "",
-      website: "",
-      accountId: "",
-      appId: "",
-    });
-    setMondayApiToken("");
-    setRegistrationComplete(false);
-    setSecondaryAppCredentials({ api_key: "" });
-    setIsMondayConnected(false);
-    setIsSecondaryAppConnected(false);
-    setSubmitting(false);
-    // Flip this back so the restore-on-load effect runs again and
-    // re-derives step/completed from the now-empty setupProgress, and
-    // re-fetches accountId/appId via loadContext().
-    setInitialized(false);
-  }
-  wasConfiguredRef.current = isConfigured;
-}, [isConfigured]);
-
- 
-
-  const loadContext = async () => {
-      const context = (await monday.get("context")).data;
-      const accountId = context.account.id;
-      const appId = context.app.id;
-      setAuthForm(prev => ({ ...prev, accountId, appId: appId.toString() }));
-      setInitialized(true);
+        setIsMondayConnected(true);
+        advance("monday");
+      } finally {
+        setSubmitting(false); // only now, once the step has actually advanced
+      }
     };
 
-  const prefillFields = async () => {
-    let tenant:any = (await storageService.getTenant());
-      
-    const restoredCompleted = new Set<Step>(
-        setupProgress.completedSteps
-          .map((n) => STEP_NUMBER_TO_ID[n])
-          .filter(Boolean) as Step[],
-      );
-    if(restoredCompleted.size && restoredCompleted.size == 1){
-        setAuthForm({
-          domain: tenant?.domain || "",
-          email: tenant?.email || "",
-          password: tenant?.password || "",
-          name: tenant?.name || "",
-          website: tenant?.website || "",
-          accountId: "",
-          appId: ""
-        });
-        setRegistrationComplete(true);
-      } else if(restoredCompleted.size && restoredCompleted.size == 2) {
-        setRegistrationComplete(true);
-        setIsMondayConnected(true);
-      } else if(restoredCompleted.size && restoredCompleted.size == 3) {
-        setRegistrationComplete(true);
-        setIsMondayConnected(true);
-        setIsSecondaryAppConnected(true);
-      }
-      
-  }
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [refreshConnections, setupProgress, updateSetupProgress]);
 
-    
+  // Reset the wizard whenever the user logs out. `isConfigured` flips from
+  // true -> false in KonnectifyProvider.logout(), but that only clears
+  // context state — none of SetupWizard's own local state (currentStep,
+  // completed, furthestStep, forms, etc). Without this, `initialized` stays
+  // true forever (it's only ever set once, in loadContext), so the
+  // restore-position effect never runs again and the wizard stays stuck on
+  // whatever step/screen it was on when logout was clicked.
+  useEffect(() => {
+    if (wasConfiguredRef.current && !isConfigured) {
+      setCurrentStep("auth");
+      setFurthestStep("auth");
+      setCompleted(new Set<Step>());
+      setErrors({ auth: "", monday: "", [SECONDARY_APP.key]: "", templates: "" });
+      setAuthForm({
+        domain: "",
+        email: "",
+        password: "",
+        name: "",
+        website: "",
+        accountId: "",
+        appId: "",
+      });
+      setMondayApiToken("");
+      setRegistrationComplete(false);
+      setSecondaryAppCredentials({ api_key: "" });
+      setIsMondayConnected(false);
+      setIsSecondaryAppConnected(false);
+      setSubmitting(false);
+      // Flip this back so the restore-on-load effect runs again and
+      // re-derives step/completed from the now-empty setupProgress, and
+      // re-fetches accountId/appId via loadContext().
+      setInitialized(false);
+    }
+    wasConfiguredRef.current = isConfigured;
+  }, [isConfigured]);
+
+  const loadContext = async () => {
+    const context = (await monday.get("context")).data;
+    const accountId = context.account.id;
+    const appId = context.app.id;
+    setAuthForm((prev) => ({ ...prev, accountId, appId: appId.toString() }));
+    setInitialized(true);
+  };
+
+  const prefillFields = async () => {
+    let tenant: any = await storageService.getTenant();
+
+    const restoredCompleted = new Set<Step>(
+      setupProgress.completedSteps.map((n) => STEP_NUMBER_TO_ID[n]).filter(Boolean) as Step[]
+    );
+    if (restoredCompleted.size && restoredCompleted.size == 1) {
+      setAuthForm({
+        domain: tenant?.domain || "",
+        email: tenant?.email || "",
+        password: tenant?.password || "",
+        name: tenant?.name || "",
+        website: tenant?.website || "",
+        accountId: "",
+        appId: "",
+      });
+      setRegistrationComplete(true);
+    } else if (restoredCompleted.size && restoredCompleted.size == 2) {
+      setRegistrationComplete(true);
+      setIsMondayConnected(true);
+    } else if (restoredCompleted.size && restoredCompleted.size == 3) {
+      setRegistrationComplete(true);
+      setIsMondayConnected(true);
+      setIsSecondaryAppConnected(true);
+    }
+  };
 
   // Restore wizard position from persisted setupProgress once context has loaded.
   useEffect(() => {
     if (contextLoading || initialized) return;
-    prefillSecondaryAppCredentials()
-    
+    prefillSecondaryAppCredentials();
 
-      const restoredCompleted = new Set<Step>(
-        setupProgress.completedSteps
-          .map((n) => STEP_NUMBER_TO_ID[n])
-          .filter(Boolean) as Step[],
-      );
-      prefillFields();
-      
-      // If the user is already authenticated (session survived reload), mark auth done.
-      if (isConfigured && !restoredCompleted.has("auth")) {
-        restoredCompleted.add("auth");
-      }
+    const restoredCompleted = new Set<Step>(
+      setupProgress.completedSteps.map((n) => STEP_NUMBER_TO_ID[n]).filter(Boolean) as Step[]
+    );
+    prefillFields();
 
-      setCompleted(restoredCompleted);
+    // If the user is already authenticated (session survived reload), mark auth done.
+    if (isConfigured && !restoredCompleted.has("auth")) {
+      restoredCompleted.add("auth");
+    }
 
-      // Jump to the furthest incomplete step.
-      const orderedSteps: Step[] = ["auth", "monday", SECONDARY_APP.key, "templates"];
-      const firstIncomplete = orderedSteps.find((s) => !restoredCompleted.has(s));
-      const resolvedStep = firstIncomplete ?? "templates";
-      setCurrentStep(resolvedStep);
-      // Furthest reached also starts here — everything up to this point is
-      // already unlocked via `completed`, so this is the new high-water mark.
-      setFurthestStep(resolvedStep);
+    setCompleted(restoredCompleted);
 
-      loadContext();
+    // Jump to the furthest incomplete step.
+    const orderedSteps: Step[] = ["auth", "monday", SECONDARY_APP.key, "templates"];
+    const firstIncomplete = orderedSteps.find((s) => !restoredCompleted.has(s));
+    const resolvedStep = firstIncomplete ?? "templates";
+    setCurrentStep(resolvedStep);
+    // Furthest reached also starts here — everything up to this point is
+    // already unlocked via `completed`, so this is the new high-water mark.
+    setFurthestStep(resolvedStep);
 
+    loadContext();
   }, [contextLoading, initialized, setupProgress, isConfigured]);
 
-  const markError = (step: Step, msg: string) =>
-    setErrors((prev) => ({ ...prev, [step]: msg }));
-  const clearError = (step: Step) =>
-    setErrors((prev) => ({ ...prev, [step]: "" }));
+  const markError = (step: Step, msg: string) => setErrors((prev) => ({ ...prev, [step]: msg }));
+  const clearError = (step: Step) => setErrors((prev) => ({ ...prev, [step]: "" }));
 
   const advance = (from: Step) => {
     setCompleted((prev) => new Set([...prev, from]));
@@ -297,20 +283,13 @@ useEffect(() => {
                 disabled={index > furthestIndex && !completed.has(step.id)}
               >
                 <div className={styles.stepCircle}>
-                  {completed.has(step.id) ? (
-                    <Check size={16} />
-                  ) : (
-                    <span>{index + 1}</span>
-                  )}
+                  {completed.has(step.id) ? <Check size={16} /> : <span>{index + 1}</span>}
                 </div>
                 <span className={styles.stepLabel}>{step.label}</span>
               </button>
               {index < STEPS.length - 1 && (
                 <div
-                  className={[
-                    styles.stepDivider,
-                    index < currentIndex ? styles.stepDividerCompleted : "",
-                  ]
+                  className={[styles.stepDivider, index < currentIndex ? styles.stepDividerCompleted : ""]
                     .filter(Boolean)
                     .join(" ")}
                 />
@@ -353,11 +332,7 @@ useEffect(() => {
           />
         )}
         {currentStep === "templates" && (
-          <TemplatesStep
-            onInstall={handleInstallTemplates}
-            submitting={submitting}
-            error={errors.templates}
-          />
+          <TemplatesStep onInstall={handleInstallTemplates} submitting={submitting} error={errors.templates} />
         )}
       </div>
     </div>
@@ -377,12 +352,8 @@ useEffect(() => {
     clearError("auth");
     setSubmitting(true);
     try {
-      if (isLogin) {
-        await login(domain, email, password);
-      } else {
-        await registerUser(domain, email, password, name ?? "", website, accountId, appId);
-        setRegistrationComplete(true);
-      }
+      await registerUser(domain, email, password, name ?? "", website, accountId, appId);
+      setRegistrationComplete(true);
       advance("auth");
     } catch (err) {
       markError("auth", err instanceof Error ? err.message : "Authentication failed");
@@ -392,44 +363,49 @@ useEffect(() => {
   }
 
   // ── Step 2: Monday ──────────────────────────────────────────────────────────
-async function handleMondayConnect() {
-  const isEditingConnection = false;
-  clearError("monday");
-  setSubmitting(true);
-  try {
-    if (!client) throw new Error("Client not initialised");
-    const oauthUrlResponse = await connectionService.getOAuthUrl(client, APP_IDS.monday, "Monday Connection", isEditingConnection);
-    const win = window.open(oauthUrlResponse.authUrl, "_blank", "width=600,height=700");
-    if (!win) {
-      throw new Error("Popup was blocked — please allow popups and try again");
-    }
-    oauthWindowRef.current = win;
-    // NOTE: submitting stays true here on purpose — the message-event effect
-    // below is responsible for flipping it off once the OAuth round-trip
-    // (postMessage -> refreshConnections -> updateSetupProgress -> advance)
-    // actually finishes. Also start polling in case the user just closes
-    // the popup instead of completing auth, so we don't spin forever.
-    pollForManualClose(win);
-  } catch (err) {
-    markError("monday", err instanceof Error ? err.message : "Failed to connect Monday");
-    setSubmitting(false);
-  }
-}
-
-function pollForManualClose(win: Window) {
-  const interval = setInterval(() => {
-    if (win.closed) {
-      clearInterval(interval);
-      // If the window closed but we never got oauth-success, oauthWindowRef
-      // will still be set to this window — that's our signal it wasn't
-      // the success path (the message handler nulls it out on success).
-      if (oauthWindowRef.current === win) {
-        oauthWindowRef.current = null;
-        setSubmitting(false);
+  async function handleMondayConnect() {
+    const isEditingConnection = false;
+    clearError("monday");
+    setSubmitting(true);
+    try {
+      if (!client) throw new Error("Client not initialised");
+      const oauthUrlResponse = await connectionService.getOAuthUrl(
+        client,
+        APP_IDS.monday,
+        "Monday Connection",
+        isEditingConnection
+      );
+      const win = window.open(oauthUrlResponse.authUrl, "_blank", "width=600,height=700");
+      if (!win) {
+        throw new Error("Popup was blocked — please allow popups and try again");
       }
+      oauthWindowRef.current = win;
+      // NOTE: submitting stays true here on purpose — the message-event effect
+      // below is responsible for flipping it off once the OAuth round-trip
+      // (postMessage -> refreshConnections -> updateSetupProgress -> advance)
+      // actually finishes. Also start polling in case the user just closes
+      // the popup instead of completing auth, so we don't spin forever.
+      pollForManualClose(win);
+    } catch (err) {
+      markError("monday", err instanceof Error ? err.message : "Failed to connect Monday");
+      setSubmitting(false);
     }
-  }, 500);
-}
+  }
+
+  function pollForManualClose(win: Window) {
+    const interval = setInterval(() => {
+      if (win.closed) {
+        clearInterval(interval);
+        // If the window closed but we never got oauth-success, oauthWindowRef
+        // will still be set to this window — that's our signal it wasn't
+        // the success path (the message handler nulls it out on success).
+        if (oauthWindowRef.current === win) {
+          oauthWindowRef.current = null;
+          setSubmitting(false);
+        }
+      }
+    }, 500);
+  }
 
   // ── Step 3: Secondary app (currently Reply.io) ──────────────────────────────
   async function handleSecondaryAppConnect(apiKey: string) {
@@ -441,10 +417,16 @@ function pollForManualClose(win: Window) {
       const connectionData = {
         api_key: apiKey,
       };
-      if(secondaryAppConnection){
+      if (secondaryAppConnection) {
         // edit connection flow
-        const connectionId:string = secondaryAppConnection.id;
-        await connectionService.edit(client, connectionId, SECONDARY_APP.appId, SECONDARY_APP.connectionName, connectionData);
+        const connectionId: string = secondaryAppConnection.id;
+        await connectionService.edit(
+          client,
+          connectionId,
+          SECONDARY_APP.appId,
+          SECONDARY_APP.connectionName,
+          connectionData
+        );
       } else {
         // create connection flow
         await connectionService.create(client, SECONDARY_APP.appId, SECONDARY_APP.connectionName, connectionData);
@@ -454,12 +436,15 @@ function pollForManualClose(win: Window) {
       const newCompleted = Array.from(new Set([...(setupProgress.completedSteps ?? []), 3]));
       await updateSetupProgress({ currentStep: 4, completedSteps: newCompleted });
       const credentialsToStore = {
-        api_key: apiKey
+        api_key: apiKey,
       };
       await storageService.setSecondaryAppCredentials(credentialsToStore);
       advance(SECONDARY_APP.key);
     } catch (err) {
-      markError(SECONDARY_APP.key, err instanceof Error ? err.message : `Failed to connect ${SECONDARY_APP.displayName}`);
+      markError(
+        SECONDARY_APP.key,
+        err instanceof Error ? err.message : `Failed to connect ${SECONDARY_APP.displayName}`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -471,7 +456,7 @@ function pollForManualClose(win: Window) {
     setSubmitting(true);
     try {
       if (!client) throw new Error("Client not initialised");
-      if(!templateFolderId) throw new Error("Template folder is unavailable");
+      if (!templateFolderId) throw new Error("Template folder is unavailable");
       await Promise.all([
         client.installKonnectorFromTemplate(templateFolderId), // template folder id
       ]);
@@ -479,10 +464,7 @@ function pollForManualClose(win: Window) {
       await updateSetupProgress({ currentStep: 4, completedSteps: newCompleted, templatesInstalled: true });
       advance("templates");
     } catch (err) {
-      markError(
-        "templates",
-        err instanceof Error ? err.message : "Failed to install templates",
-      );
+      markError("templates", err instanceof Error ? err.message : "Failed to install templates");
     } finally {
       setSubmitting(false);
     }
@@ -506,7 +488,7 @@ interface AuthStepProps {
   error: string;
   form: AuthForm;
   setForm: React.Dispatch<React.SetStateAction<AuthForm>>;
-  registrationComplete: boolean
+  registrationComplete: boolean;
 }
 
 interface AuthForm {
@@ -540,7 +522,16 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
       setLocalError(validationError);
       return;
     }
-    await onSubmit(form.domain, form.email, form.password, isLogin, form.name, form.website, form.accountId, form.appId);
+    await onSubmit(
+      form.domain,
+      form.email,
+      form.password,
+      isLogin,
+      form.name,
+      form.website,
+      form.accountId,
+      form.appId
+    );
   };
 
   const displayError = localError || error;
@@ -548,13 +539,9 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
   return (
     <div className={styles.stepPanel}>
       <div className={styles.panelHeader}>
-        <h2 className={styles.panelTitle}>
-          {isLogin ? "Welcome Back" : "Create Account"}
-        </h2>
+        <h2 className={styles.panelTitle}>{isLogin ? "Welcome Back" : "Create Account"}</h2>
         <p className={styles.panelSubtitle}>
-          {isLogin
-            ? "Sign in to your Konnectify workspace"
-            : "Set up your Konnectify workspace"}
+          {isLogin ? "Sign in to your Konnectify workspace" : "Set up your Konnectify workspace"}
         </p>
       </div>
 
@@ -575,7 +562,7 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
               type="text"
               placeholder="your-domain"
               value={form.domain}
-              onChange={(e) => setForm(prev => ({...prev, domain: e.target.value}))}
+              onChange={(e) => setForm((prev) => ({ ...prev, domain: e.target.value }))}
               disabled={submitting || registrationComplete}
             />
             <span className={styles.domainSuffix}>.konnectifyapp.co</span>
@@ -591,7 +578,7 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
               type="email"
               placeholder="you@example.com"
               value={form.email}
-              onChange={(e) => setForm(prev => ({...prev, email: e.target.value}))}
+              onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
               disabled={submitting || registrationComplete}
             />
           </div>
@@ -606,7 +593,7 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
               type="password"
               placeholder="••••••••"
               value={form.password}
-              onChange={(e) => setForm(prev => ({...prev, password: e.target.value}))}
+              onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
               disabled={submitting || registrationComplete}
             />
           </div>
@@ -623,7 +610,7 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
                   type="text"
                   placeholder="John Doe"
                   value={form.name}
-                  onChange={(e) => setForm(prev => ({...prev, name: e.target.value}))}
+                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                   disabled={submitting || registrationComplete}
                 />
               </div>
@@ -632,8 +619,7 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
             {/* website field */}
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>
-                Company Website{" "}
-                <span className={styles.optional}>(optional)</span>
+                Company Website <span className={styles.optional}>(optional)</span>
               </label>
               <div className={styles.inputWrapper}>
                 <Globe size={18} />
@@ -641,7 +627,7 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
                   type="url"
                   placeholder="https://example.com"
                   value={form.website}
-                  onChange={(e) => setForm(prev => ({...prev, website: e.target.value}))}
+                  onChange={(e) => setForm((prev) => ({ ...prev, website: e.target.value }))}
                   disabled={submitting || registrationComplete}
                 />
               </div>
@@ -658,7 +644,6 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
         >
           {registrationComplete ? "Account Created" : "Create Account"}
         </Button>
-
       </form>
     </div>
   );
@@ -676,7 +661,6 @@ interface MondayStepProps {
 }
 
 const MondayStep: React.FC<MondayStepProps> = ({ onConnect, submitting, error, isMondayConnected }) => {
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onConnect();
@@ -686,9 +670,7 @@ const MondayStep: React.FC<MondayStepProps> = ({ onConnect, submitting, error, i
     <div className={styles.stepPanel}>
       <div className={styles.panelHeader}>
         <h2 className={styles.panelTitle}>Connect Monday</h2>
-        <p className={styles.panelSubtitle}>
-          Click on Connect Monday button to link your account
-        </p>
+        <p className={styles.panelSubtitle}>Click on Connect Monday button to link your account</p>
       </div>
 
       {error && (
@@ -723,12 +705,18 @@ interface SecondaryAppStepProps {
   submitting: boolean;
   error: string;
   credentials: SecondaryAppCredentials;
-  setCredentials: React.Dispatch<React.SetStateAction<SecondaryAppCredentials>>
-  isConnected: boolean
+  setCredentials: React.Dispatch<React.SetStateAction<SecondaryAppCredentials>>;
+  isConnected: boolean;
 }
 
-const SecondaryAppStep: React.FC<SecondaryAppStepProps> = ({ onConnect, submitting, error, credentials, setCredentials, isConnected }) => {
-
+const SecondaryAppStep: React.FC<SecondaryAppStepProps> = ({
+  onConnect,
+  submitting,
+  error,
+  credentials,
+  setCredentials,
+  isConnected,
+}) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onConnect(credentials.api_key.trim());
@@ -738,9 +726,7 @@ const SecondaryAppStep: React.FC<SecondaryAppStepProps> = ({ onConnect, submitti
     <div className={styles.stepPanel}>
       <div className={styles.panelHeader}>
         <h2 className={styles.panelTitle}>Connect {SECONDARY_APP.displayName}</h2>
-        <p className={styles.panelSubtitle}>
-          {SECONDARY_APP.panelSubtitle}
-        </p>
+        <p className={styles.panelSubtitle}>{SECONDARY_APP.panelSubtitle}</p>
       </div>
 
       {error && (
@@ -759,7 +745,7 @@ const SecondaryAppStep: React.FC<SecondaryAppStepProps> = ({ onConnect, submitti
               type="password"
               placeholder="Paste your API key here..."
               value={credentials.api_key}
-              onChange={(e) => setCredentials( prev => ({...prev, api_key: e.target.value}))}
+              onChange={(e) => setCredentials((prev) => ({ ...prev, api_key: e.target.value }))}
               disabled={submitting || isConnected}
             />
           </div>
@@ -790,17 +776,11 @@ interface TemplatesStepProps {
   error: string;
 }
 
-const TemplatesStep: React.FC<TemplatesStepProps> = ({
-  onInstall,
-  submitting,
-  error,
-}) => (
+const TemplatesStep: React.FC<TemplatesStepProps> = ({ onInstall, submitting, error }) => (
   <div className={styles.stepPanel}>
     <div className={styles.panelHeader}>
       <h2 className={styles.panelTitle}>Install Workflow Templates</h2>
-      <p className={styles.panelSubtitle}>
-        Pre-built workflows to get you started instantly
-      </p>
+      <p className={styles.panelSubtitle}>Pre-built workflows to get you started instantly</p>
     </div>
 
     {error && (
@@ -817,9 +797,7 @@ const TemplatesStep: React.FC<TemplatesStepProps> = ({
         </div>
         <div>
           <p className={styles.infoTitle}>Ready to Install</p>
-          <p className={styles.infoText}>
-            {WORKFLOW_TEMPLATES.length} workflow templates will be installed:
-          </p>
+          <p className={styles.infoText}>{WORKFLOW_TEMPLATES.length} workflow templates will be installed:</p>
         </div>
       </div>
 
@@ -855,30 +833,27 @@ const CompleteStep: React.FC = () => {
   const editOauthWindowRef = useRef<Window | null>(null);
   const [isConnected, setIsConnected] = useState(true);
 
-
   useEffect(() => {
-  // for edit oauth
-  const handler = async (event: MessageEvent) => {
-    if (event.data?.type !== "oauth-success") return;
-    if (editOauthWindowRef.current && !editOauthWindowRef.current.closed) {
-      editOauthWindowRef.current.close();
-      editOauthWindowRef.current = null;
-      setIsConnected(true);
-      const oauthButton = document.getElementById("mondayOauthButton");
-      const currentStatus = oauthButton?.innerText;
-      if(currentStatus === "Connect Monday" && oauthButton){
-        oauthButton.innerText = "Disconnect Monday";
+    // for edit oauth
+    const handler = async (event: MessageEvent) => {
+      if (event.data?.type !== "oauth-success") return;
+      if (editOauthWindowRef.current && !editOauthWindowRef.current.closed) {
+        editOauthWindowRef.current.close();
+        editOauthWindowRef.current = null;
+        setIsConnected(true);
+        const oauthButton = document.getElementById("mondayOauthButton");
+        const currentStatus = oauthButton?.innerText;
+        if (currentStatus === "Connect Monday" && oauthButton) {
+          oauthButton.innerText = "Disconnect Monday";
+        }
       }
-    }
-    await refreshConnections();
-  };
+      await refreshConnections();
+    };
 
-  window.addEventListener("message", handler);
+    window.addEventListener("message", handler);
 
-  return () => window.removeEventListener("message", handler);
-}, [refreshConnections]);
-
-
+    return () => window.removeEventListener("message", handler);
+  }, [refreshConnections]);
 
   return (
     <div className={styles.stepPanel} style={{ maxWidth: 600 }}>
@@ -887,7 +862,9 @@ const CompleteStep: React.FC = () => {
         <div className={styles.completeIcon} style={{ marginBottom: 8 }}>
           <Check size={36} />
         </div>
-        <h2 className={styles.completeTitle} style={{ fontSize: 22 }}>Setup Complete</h2>
+        <h2 className={styles.completeTitle} style={{ fontSize: 22 }}>
+          Setup Complete
+        </h2>
         <p className={styles.panelSubtitle}>
           Your Konnectify workspace is fully configured. Open the{" "}
           <strong style={{ color: "var(--text-primary)" }}>Board View</strong> tab to manage your konnectors.
@@ -909,34 +886,33 @@ const CompleteStep: React.FC = () => {
       <div className={styles.infoSection}>
         <p className={styles.sectionLabel}>Connections</p>
 
-        <MondayEditCard 
+        <MondayEditCard
           connection={mondayConn}
           appId={APP_IDS.monday}
           connectionName="Monday Connection"
           client={client}
           onSaved={() => void refreshConnections()}
-          editOauthRef = {editOauthWindowRef}
+          editOauthRef={editOauthWindowRef}
           isConnected={isConnected}
           setIsConnected={setIsConnected}
         />
         <ConnectionEditCard
           label={SECONDARY_APP.displayName}
           connection={secondaryAppConn}
-          fields={[
-            { key: "api_key", label: "API Key", type: "password" },
-          ]}
+          fields={[{ key: "api_key", label: "API Key", type: "password" }]}
           appId={SECONDARY_APP.appId}
           connectionName={SECONDARY_APP.connectionName}
           client={client}
           onSaved={() => void refreshConnections()}
         />
-        
       </div>
 
       <button
         className={styles.toggleLink}
         style={{ marginTop: 8 }}
-        onClick={() => { if (confirm("Are you sure you want to logout?")) void logout(); }}
+        onClick={() => {
+          if (confirm("Are you sure you want to logout?")) void logout();
+        }}
       >
         Logout
       </button>
@@ -997,7 +973,9 @@ const ConnectionEditCard: React.FC<ConnectionEditCardProps> = ({
     setSaving(true);
     try {
       const data: Record<string, unknown> = {};
-      fields.forEach((f) => { data[f.key] = values[f.key]; });
+      fields.forEach((f) => {
+        data[f.key] = values[f.key];
+      });
 
       if (connection) {
         await connectionService.edit(client, connection.id, appId, connection.name, data);
@@ -1077,61 +1055,66 @@ interface ConnectionEditOAuthCardProps {
   connectionName: string;
   client: KonnectifyClient | null;
   onSaved: () => void;
-  editOauthRef: React.MutableRefObject<Window | null> ;
+  editOauthRef: React.MutableRefObject<Window | null>;
   isConnected: boolean;
   setIsConnected: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const MondayEditCard: React.FC<ConnectionEditOAuthCardProps> = ({connection, appId, connectionName, client, onSaved, editOauthRef, isConnected, setIsConnected}) => {
+const MondayEditCard: React.FC<ConnectionEditOAuthCardProps> = ({
+  connection,
+  appId,
+  connectionName,
+  client,
+  onSaved,
+  editOauthRef,
+  isConnected,
+  setIsConnected,
+}) => {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const isEditingConnection = true;
   const connectionId = connection?.id || ""; // contain monday connection id
 
   async function handleMondayOAuth() {
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    if (!client) return;
+      if (!client) return;
 
-    if (!isConnected) {
-      // Connect flow
-      const oauthUrlResponse = await connectionService.getOAuthUrl(
-        client,
-        appId,
-        connectionName,
-        isEditingConnection,
-        connectionId
-      );
+      if (!isConnected) {
+        // Connect flow
+        const oauthUrlResponse = await connectionService.getOAuthUrl(
+          client,
+          appId,
+          connectionName,
+          isEditingConnection,
+          connectionId
+        );
 
-      editOauthRef.current = window.open(
-        oauthUrlResponse.authUrl,
-        "_blank",
-        "width=600,height=700"
-      );
-    } else {
-      // Disconnect flow
-      setIsConnected(false);
+        editOauthRef.current = window.open(oauthUrlResponse.authUrl, "_blank", "width=600,height=700");
+      } else {
+        // Disconnect flow
+        setIsConnected(false);
+      }
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.log(error);
-  } finally {
-    setLoading(false);
   }
-}
 
-  return(
+  return (
     <div className={styles.connCard}>
       <div className={styles.connCardHeader}>
         <div>
-          <span className={styles.connLabel}> monday.com
-            {
-              isConnected ? (
-                <span className={styles.connStatus}> Connected</span>
-              ) : (
-                <span className={styles.connStatusMissing}>Not connected</span>
-              )
-            }
+          <span className={styles.connLabel}>
+            {" "}
+            monday.com
+            {isConnected ? (
+              <span className={styles.connStatus}> Connected</span>
+            ) : (
+              <span className={styles.connStatusMissing}>Not connected</span>
+            )}
           </span>
         </div>
         {!editing && (
@@ -1142,16 +1125,13 @@ const MondayEditCard: React.FC<ConnectionEditOAuthCardProps> = ({connection, app
       </div>
 
       {/* connect/disconnect button */}
-      {
-        editing && (
-          <div className={styles.connForm}>
-            <Button kind="primary" size="small" loading={loading} onClick={handleMondayOAuth} id="mondayOauthButton">
-              {isConnected ? "Disconnect" : "Connect"}
-            </Button>
-          </div>
-        )
-      }
-
+      {editing && (
+        <div className={styles.connForm}>
+          <Button kind="primary" size="small" loading={loading} onClick={handleMondayOAuth} id="mondayOauthButton">
+            {isConnected ? "Disconnect" : "Connect"}
+          </Button>
+        </div>
+      )}
     </div>
-  )
-}
+  );
+};
