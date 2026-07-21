@@ -1,17 +1,15 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Button, Loader, Text } from "@vibe/core";
-import { Check, Email, Globe, Locked, Person, Warning } from "@vibe/icons";
+import { Button, Loader } from "@vibe/core";
+import { Check, Email, Globe, Hide, Locked, Person, Show, Warning } from "@vibe/icons";
 import { useKonnectify } from "../../hooks";
 import { APP_IDS, SECONDARY_APP, templateFolderId, WORKFLOW_TEMPLATES } from "../../constants";
 import { connectionService } from "../../services/connectionService";
 import { storageService } from "../../services/storageService";
 import styles from "./SetupWizard.module.css";
-import axios from "axios";
 import mondaySdk from "monday-sdk-js";
-import type { SecondaryAppCredentials } from "../../types";
 const monday = mondaySdk();
 
-// SECONDARY_APP (the app paired with Monday — currently Reply.io) now lives
+// SECONDARY_APP (the app paired with Monday — currently Apollo.io) now lives
 // in ../../constants.ts. That's the ONLY place to edit to swap the secondary
 // app, since storageService.ts also needs it (a service can't import from a
 // component file, so the shared config has to live in constants).
@@ -75,20 +73,10 @@ export const SetupWizard: React.FC = () => {
     accountId: "",
     appId: "",
   });
-  const [mondayApiToken, setMondayApiToken] = useState("");
   const [registrationComplete, setRegistrationComplete] = useState(false);
-  const [secondaryAppCredentials, setSecondaryAppCredentials] = useState<SecondaryAppCredentials>({ api_key: "" });
-
-  const prefillSecondaryAppCredentials = async () => {
-    const fsCredentials = (await storageService.getSecondaryAppCredentials()) as
-      | (SecondaryAppCredentials & { apikey?: string })
-      | null;
-    if (fsCredentials) {
-      setSecondaryAppCredentials({ api_key: fsCredentials.api_key ?? fsCredentials.apikey ?? "" });
-    }
-  };
 
   const oauthWindowRef = useRef<Window | null>(null);
+  const oauthStepRef = useRef<"monday" | typeof SECONDARY_APP.key | null>(null);
   const wasConfiguredRef = useRef(isConfigured);
   const [isMondayConnected, setIsMondayConnected] = useState(false);
   const [isSecondaryAppConnected, setIsSecondaryAppConnected] = useState(false);
@@ -96,6 +84,7 @@ export const SetupWizard: React.FC = () => {
   useEffect(() => {
     const handler = async (event: MessageEvent) => {
       if (event.data?.type !== "oauth-success") return;
+      if (!oauthWindowRef.current || !oauthStepRef.current) return;
       if (oauthWindowRef.current && !oauthWindowRef.current.closed) {
         oauthWindowRef.current.close();
       }
@@ -104,15 +93,25 @@ export const SetupWizard: React.FC = () => {
       try {
         await refreshConnections();
 
-        const newCompleted = Array.from(new Set([...(setupProgress.completedSteps ?? []), 2]));
+        const completedStepNumber = oauthStepRef.current === SECONDARY_APP.key ? 3 : 2;
+        const nextStepNumber = oauthStepRef.current === SECONDARY_APP.key ? 4 : 3;
+        const completedStepId = oauthStepRef.current === SECONDARY_APP.key ? SECONDARY_APP.key : "monday";
+        const newCompleted = Array.from(
+          new Set([...(setupProgress.completedSteps ?? []), completedStepNumber])
+        );
 
         await updateSetupProgress({
-          currentStep: 3,
+          currentStep: nextStepNumber,
           completedSteps: newCompleted,
         });
 
-        setIsMondayConnected(true);
-        advance("monday");
+        if (completedStepId === SECONDARY_APP.key) {
+          setIsSecondaryAppConnected(true);
+        } else {
+          setIsMondayConnected(true);
+        }
+        oauthStepRef.current = null;
+        advance(completedStepId);
       } finally {
         setSubmitting(false); // only now, once the step has actually advanced
       }
@@ -144,9 +143,7 @@ export const SetupWizard: React.FC = () => {
         accountId: "",
         appId: "",
       });
-      setMondayApiToken("");
       setRegistrationComplete(false);
-      setSecondaryAppCredentials({ api_key: "" });
       setIsMondayConnected(false);
       setIsSecondaryAppConnected(false);
       setSubmitting(false);
@@ -196,7 +193,6 @@ export const SetupWizard: React.FC = () => {
   // Restore wizard position from persisted setupProgress once context has loaded.
   useEffect(() => {
     if (contextLoading || initialized) return;
-    prefillSecondaryAppCredentials();
 
     const restoredCompleted = new Set<Step>(
       setupProgress.completedSteps.map((n) => STEP_NUMBER_TO_ID[n]).filter(Boolean) as Step[]
@@ -316,8 +312,6 @@ export const SetupWizard: React.FC = () => {
             onConnect={handleMondayConnect}
             submitting={submitting}
             error={errors.monday}
-            mondayApiToken={mondayApiToken}
-            setMondayApiToken={setMondayApiToken}
             isMondayConnected={isMondayConnected}
           />
         )}
@@ -326,8 +320,6 @@ export const SetupWizard: React.FC = () => {
             onConnect={handleSecondaryAppConnect}
             submitting={submitting}
             error={errors[SECONDARY_APP.key]}
-            credentials={secondaryAppCredentials}
-            setCredentials={setSecondaryAppCredentials}
             isConnected={isSecondaryAppConnected}
           />
         )}
@@ -380,6 +372,7 @@ export const SetupWizard: React.FC = () => {
         throw new Error("Popup was blocked — please allow popups and try again");
       }
       oauthWindowRef.current = win;
+      oauthStepRef.current = "monday";
       // NOTE: submitting stays true here on purpose — the message-event effect
       // below is responsible for flipping it off once the OAuth round-trip
       // (postMessage -> refreshConnections -> updateSetupProgress -> advance)
@@ -401,51 +394,39 @@ export const SetupWizard: React.FC = () => {
         // the success path (the message handler nulls it out on success).
         if (oauthWindowRef.current === win) {
           oauthWindowRef.current = null;
+          oauthStepRef.current = null;
           setSubmitting(false);
         }
       }
     }, 500);
   }
 
-  // ── Step 3: Secondary app (currently Reply.io) ──────────────────────────────
-  async function handleSecondaryAppConnect(apiKey: string) {
+  // ── Step 3: Secondary app (currently Apollo.io) ─────────────────────────────
+  async function handleSecondaryAppConnect() {
     const secondaryAppConnection = connections?.find((c) => c.appId === SECONDARY_APP.appId) ?? null;
     clearError(SECONDARY_APP.key);
     setSubmitting(true);
     try {
       if (!client) throw new Error("Client not initialised");
-      const connectionData = {
-        api_key: apiKey,
-      };
-      if (secondaryAppConnection) {
-        // edit connection flow
-        const connectionId: string = secondaryAppConnection.id;
-        await connectionService.edit(
-          client,
-          connectionId,
-          SECONDARY_APP.appId,
-          SECONDARY_APP.connectionName,
-          connectionData
-        );
-      } else {
-        // create connection flow
-        await connectionService.create(client, SECONDARY_APP.appId, SECONDARY_APP.connectionName, connectionData);
+      const oauthUrlResponse = await connectionService.getOAuthUrl(
+        client,
+        SECONDARY_APP.appId,
+        SECONDARY_APP.connectionName,
+        Boolean(secondaryAppConnection),
+        secondaryAppConnection?.id
+      );
+      const win = window.open(oauthUrlResponse.authUrl, "_blank", "width=600,height=700");
+      if (!win) {
+        throw new Error("Popup was blocked — please allow popups and try again");
       }
-      setIsSecondaryAppConnected(true);
-      await refreshConnections();
-      const newCompleted = Array.from(new Set([...(setupProgress.completedSteps ?? []), 3]));
-      await updateSetupProgress({ currentStep: 4, completedSteps: newCompleted });
-      const credentialsToStore = {
-        api_key: apiKey,
-      };
-      await storageService.setSecondaryAppCredentials(credentialsToStore);
-      advance(SECONDARY_APP.key);
+      oauthWindowRef.current = win;
+      oauthStepRef.current = SECONDARY_APP.key;
+      pollForManualClose(win);
     } catch (err) {
       markError(
         SECONDARY_APP.key,
         err instanceof Error ? err.message : `Failed to connect ${SECONDARY_APP.displayName}`
       );
-    } finally {
       setSubmitting(false);
     }
   }
@@ -504,6 +485,7 @@ interface AuthForm {
 const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, setForm, registrationComplete }) => {
   const [isLogin, setIsLogin] = useState(false);
   const [localError, setLocalError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const validate = () => {
     if (!form.domain.trim()) return "Domain is required";
@@ -590,12 +572,22 @@ const AuthStep: React.FC<AuthStepProps> = ({ onSubmit, submitting, error, form, 
           <div className={styles.inputWrapper}>
             <Locked size={18} />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               value={form.password}
               onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
               disabled={submitting || registrationComplete}
             />
+            <button
+              type="button"
+              className={styles.passwordToggle}
+              onClick={() => setShowPassword((prev) => !prev)}
+              disabled={submitting || registrationComplete}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <Hide size={18} /> : <Show size={18} />}
+            </button>
           </div>
         </div>
 
@@ -655,8 +647,6 @@ interface MondayStepProps {
   onConnect: () => Promise<void>;
   submitting: boolean;
   error: string;
-  mondayApiToken: string;
-  setMondayApiToken: React.Dispatch<React.SetStateAction<string>>;
   isMondayConnected: boolean;
 }
 
@@ -696,16 +686,14 @@ const MondayStep: React.FC<MondayStepProps> = ({ onConnect, submitting, error, i
 };
 
 // ─── SecondaryAppStep ────────────────────────────────────────────────────────
-// Generic step for whatever SECONDARY_APP is currently configured (Reply.io
+// Generic step for whatever SECONDARY_APP is currently configured (Apollo.io
 // today). All copy/labels come from SECONDARY_APP — nothing app-specific
 // is hardcoded here.
 
 interface SecondaryAppStepProps {
-  onConnect: (apiKey: string) => Promise<void>;
+  onConnect: () => Promise<void>;
   submitting: boolean;
   error: string;
-  credentials: SecondaryAppCredentials;
-  setCredentials: React.Dispatch<React.SetStateAction<SecondaryAppCredentials>>;
   isConnected: boolean;
 }
 
@@ -713,13 +701,11 @@ const SecondaryAppStep: React.FC<SecondaryAppStepProps> = ({
   onConnect,
   submitting,
   error,
-  credentials,
-  setCredentials,
   isConnected,
 }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onConnect(credentials.api_key.trim());
+    await onConnect();
   };
 
   return (
@@ -737,28 +723,11 @@ const SecondaryAppStep: React.FC<SecondaryAppStepProps> = ({
       )}
 
       <form onSubmit={(e) => void handleSubmit(e)} className={styles.form}>
-        <div className={styles.formGroup}>
-          <label className={styles.formLabel}>API Key</label>
-          <div className={styles.inputWrapper}>
-            <Locked size={18} />
-            <input
-              type="password"
-              placeholder="Paste your API key here..."
-              value={credentials.api_key}
-              onChange={(e) => setCredentials((prev) => ({ ...prev, api_key: e.target.value }))}
-              disabled={submitting || isConnected}
-            />
-          </div>
-          <Text type="text3" color="secondary" style={{ marginTop: 4 }}>
-            {SECONDARY_APP.apiKeyHelpText}
-          </Text>
-        </div>
-
         <Button
           kind="primary"
           type="submit"
           loading={submitting}
-          disabled={submitting || !credentials.api_key.trim() || isConnected}
+          disabled={submitting || isConnected}
           style={{ width: "100%", marginTop: 8 }}
         >
           {isConnected ? SECONDARY_APP.connectedButtonText : SECONDARY_APP.connectButtonText}
@@ -830,31 +799,6 @@ const CompleteStep: React.FC = () => {
   const mondayConn = connections.find((c) => c.appId === APP_IDS.monday) ?? null;
   const secondaryAppConn = connections.find((c) => c.appId === SECONDARY_APP.appId) ?? null;
 
-  const editOauthWindowRef = useRef<Window | null>(null);
-  const [isConnected, setIsConnected] = useState(true);
-
-  useEffect(() => {
-    // for edit oauth
-    const handler = async (event: MessageEvent) => {
-      if (event.data?.type !== "oauth-success") return;
-      if (editOauthWindowRef.current && !editOauthWindowRef.current.closed) {
-        editOauthWindowRef.current.close();
-        editOauthWindowRef.current = null;
-        setIsConnected(true);
-        const oauthButton = document.getElementById("mondayOauthButton");
-        const currentStatus = oauthButton?.innerText;
-        if (currentStatus === "Connect Monday" && oauthButton) {
-          oauthButton.innerText = "Disconnect Monday";
-        }
-      }
-      await refreshConnections();
-    };
-
-    window.addEventListener("message", handler);
-
-    return () => window.removeEventListener("message", handler);
-  }, [refreshConnections]);
-
   return (
     <div className={styles.stepPanel} style={{ maxWidth: 600 }}>
       {/* Header */}
@@ -886,20 +830,17 @@ const CompleteStep: React.FC = () => {
       <div className={styles.infoSection}>
         <p className={styles.sectionLabel}>Connections</p>
 
-        <MondayEditCard
+        <OAuthConnectionEditCard
+          label="monday.com"
           connection={mondayConn}
           appId={APP_IDS.monday}
           connectionName="Monday Connection"
           client={client}
           onSaved={() => void refreshConnections()}
-          editOauthRef={editOauthWindowRef}
-          isConnected={isConnected}
-          setIsConnected={setIsConnected}
         />
-        <ConnectionEditCard
+        <OAuthConnectionEditCard
           label={SECONDARY_APP.displayName}
           connection={secondaryAppConn}
-          fields={[{ key: "api_key", label: "API Key", type: "password" }]}
           appId={SECONDARY_APP.appId}
           connectionName={SECONDARY_APP.connectionName}
           client={client}
@@ -920,91 +861,121 @@ const CompleteStep: React.FC = () => {
   );
 };
 
-// ─── ConnectionEditCard ───────────────────────────────────────────────────────
+// ─── OAuthConnectionEditCard ──────────────────────────────────────────────────
 
 import type { Connection } from "../../types";
 import type { KonnectifyClient } from "../../services/konnectifyClient";
 
-interface FieldDef {
-  key: string;
-  label: string;
-  type: "text" | "password";
-  suffix?: string;
-}
-
-interface ConnectionEditCardProps {
+interface OAuthConnectionEditCardProps {
   label: string;
   connection: Connection | null;
-  fields: FieldDef[];
   appId: string;
   connectionName: string;
   client: KonnectifyClient | null;
   onSaved: () => void;
 }
 
-const ConnectionEditCard: React.FC<ConnectionEditCardProps> = ({
+const OAuthConnectionEditCard: React.FC<OAuthConnectionEditCardProps> = ({
   label,
   connection,
-  fields,
   appId,
   connectionName,
   client,
   onSaved,
 }) => {
+  const editOauthRef = useRef<Window | null>(null);
   const [editing, setEditing] = useState(false);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const [isConnected, setIsConnected] = useState(Boolean(connection));
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    setIsConnected(Boolean(connection));
+  }, [connection]);
+
+  useEffect(() => {
+    const handler = async (event: MessageEvent) => {
+      if (event.data?.type !== "oauth-success") return;
+      if (!editOauthRef.current) return;
+
+      if (!editOauthRef.current.closed) {
+        editOauthRef.current.close();
+      }
+      editOauthRef.current = null;
+      setIsConnected(true);
+      setEditing(false);
+      setLoading(false);
+      await onSaved();
+    };
+
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [onSaved]);
+
   const startEdit = () => {
-    // Pre-fill with existing data where available (api_key is never returned by API)
-    const prefilled: Record<string, string> = {};
-    fields.forEach((f) => {
-      prefilled[f.key] = (connection?.data?.[f.key] as string | undefined) ?? "";
-    });
-    setValues(prefilled);
     setError("");
     setEditing(true);
   };
 
-  const handleSave = async () => {
+  const handleOAuth = async () => {
     if (!client) return;
     setError("");
-    setSaving(true);
+    setLoading(true);
+    let waitingForOAuth = false;
     try {
-      const data: Record<string, unknown> = {};
-      fields.forEach((f) => {
-        data[f.key] = values[f.key];
-      });
-
-      if (connection) {
-        await connectionService.edit(client, connection.id, appId, connection.name, data);
+      if (!isConnected) {
+        const oauthUrlResponse = await connectionService.getOAuthUrl(
+          client,
+          appId,
+          connectionName,
+          Boolean(connection),
+          connection?.id
+        );
+        const win = window.open(oauthUrlResponse.authUrl, "_blank", "width=600,height=700");
+        if (!win) {
+          throw new Error("Popup was blocked — please allow popups and try again");
+        }
+        editOauthRef.current = win;
+        pollForManualClose(win);
+        waitingForOAuth = true;
+        return;
       } else {
-        await connectionService.create(client, appId, connectionName, data);
+        setIsConnected(false);
       }
-      onSaved();
-      setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
-      setSaving(false);
+      if (!waitingForOAuth) {
+        setLoading(false);
+      }
     }
   };
+
+  const pollForManualClose = (win: Window) => {
+    const interval = setInterval(() => {
+      if (win.closed) {
+        clearInterval(interval);
+        if (editOauthRef.current === win) {
+          editOauthRef.current = null;
+          setLoading(false);
+        }
+      }
+    }, 500);
+  };
+
+  const statusClass = isConnected ? styles.connStatus : styles.connStatusMissing;
+  const statusText = isConnected ? "Connected" : "Not connected";
 
   return (
     <div className={styles.connCard}>
       <div className={styles.connCardHeader}>
         <div>
           <span className={styles.connLabel}>{label}</span>
-          {connection ? (
-            <span className={styles.connStatus}>Connected</span>
-          ) : (
-            <span className={styles.connStatusMissing}>Not connected</span>
-          )}
+          <span className={statusClass}>{statusText}</span>
         </div>
         {!editing && (
           <button className={styles.editLink} onClick={startEdit}>
-            {connection ? "Edit" : "Connect"}
+            {isConnected ? "Edit" : "Connect"}
           </button>
         )}
       </div>
@@ -1017,119 +988,14 @@ const ConnectionEditCard: React.FC<ConnectionEditCardProps> = ({
               <span>{error}</span>
             </div>
           )}
-          {fields.map((f) => (
-            <div key={f.key} className={styles.formGroup}>
-              <label className={styles.formLabel}>{f.label}</label>
-              <div className={styles.inputWrapper}>
-                <Locked size={16} />
-                <input
-                  type={f.type}
-                  placeholder={f.type === "password" ? "••••••••" : f.label}
-                  value={values[f.key] ?? ""}
-                  onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                  disabled={saving}
-                />
-                {f.suffix && <span className={styles.domainSuffix}>{f.suffix}</span>}
-              </div>
-            </div>
-          ))}
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-            <Button kind="primary" size="small" loading={saving} onClick={() => void handleSave()}>
-              Save
+            <Button kind="primary" size="small" loading={loading} onClick={() => void handleOAuth()}>
+              {isConnected ? "Disconnect" : "Connect"}
             </Button>
-            <Button kind="tertiary" size="small" disabled={saving} onClick={() => setEditing(false)}>
+            <Button kind="tertiary" size="small" disabled={loading} onClick={() => setEditing(false)}>
               Cancel
             </Button>
           </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---- Monday OAuth Edit --------------------------------------------------
-
-interface ConnectionEditOAuthCardProps {
-  connection: Connection | null;
-  appId: string;
-  connectionName: string;
-  client: KonnectifyClient | null;
-  onSaved: () => void;
-  editOauthRef: React.MutableRefObject<Window | null>;
-  isConnected: boolean;
-  setIsConnected: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-const MondayEditCard: React.FC<ConnectionEditOAuthCardProps> = ({
-  connection,
-  appId,
-  connectionName,
-  client,
-  onSaved,
-  editOauthRef,
-  isConnected,
-  setIsConnected,
-}) => {
-  const [editing, setEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const isEditingConnection = true;
-  const connectionId = connection?.id || ""; // contain monday connection id
-
-  async function handleMondayOAuth() {
-    try {
-      setLoading(true);
-
-      if (!client) return;
-
-      if (!isConnected) {
-        // Connect flow
-        const oauthUrlResponse = await connectionService.getOAuthUrl(
-          client,
-          appId,
-          connectionName,
-          isEditingConnection,
-          connectionId
-        );
-
-        editOauthRef.current = window.open(oauthUrlResponse.authUrl, "_blank", "width=600,height=700");
-      } else {
-        // Disconnect flow
-        setIsConnected(false);
-      }
-    } catch (error) {
-      console.log(error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className={styles.connCard}>
-      <div className={styles.connCardHeader}>
-        <div>
-          <span className={styles.connLabel}>
-            {" "}
-            monday.com
-            {isConnected ? (
-              <span className={styles.connStatus}> Connected</span>
-            ) : (
-              <span className={styles.connStatusMissing}>Not connected</span>
-            )}
-          </span>
-        </div>
-        {!editing && (
-          <button className={styles.editLink} onClick={() => setEditing(true)}>
-            {isConnected ? "Edit" : "Connect"}
-          </button>
-        )}
-      </div>
-
-      {/* connect/disconnect button */}
-      {editing && (
-        <div className={styles.connForm}>
-          <Button kind="primary" size="small" loading={loading} onClick={handleMondayOAuth} id="mondayOauthButton">
-            {isConnected ? "Disconnect" : "Connect"}
-          </Button>
         </div>
       )}
     </div>

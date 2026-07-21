@@ -133,10 +133,6 @@ export interface IframeDestination {
   templateId?: number;
 }
 
-export interface SecondaryAppCredentials {
-  api_key: string;
-}
-
 export interface BillingSummary {
   billing: Billing;
   scheduled?: Record<string, unknown>;
@@ -182,4 +178,3 @@ export interface BillingCredits {
   overageUsed: number;
   periodEnd: Date
 }
-

@@ -6,9 +6,7 @@ import type {
   SubscriptionInfo,
   Tenant,
   WorkflowTemplate,
-  SecondaryAppCredentials, 
 } from "../types";
-import { SECONDARY_APP } from "../constants";
 
 const monday = mondaySdk();
 
@@ -21,7 +19,6 @@ const KEYS = {
   subscription: "konnectify_subscription",
   templates: "konnectify_templates",
   setupProgress: "konnectify_setup_progress",
-  secondaryAppCredentials: `${SECONDARY_APP.key}_credentials`,
 } as const;
 
 
@@ -58,14 +55,6 @@ async function del(key: string): Promise<void> {
 // ─── StorageService ────────────────────────────────────────────────────────
 
 export class StorageService {
-
-  async getSecondaryAppCredentials(): Promise<SecondaryAppCredentials | null> {
-    return get<SecondaryAppCredentials>(KEYS.secondaryAppCredentials);
-  }
-  async setSecondaryAppCredentials(credentials: SecondaryAppCredentials): Promise<void> {
-    return set(KEYS.secondaryAppCredentials, credentials);
-  }
-
   async getTenant(): Promise<Tenant | null> {
     return get<Tenant>(KEYS.tenant);
   }
