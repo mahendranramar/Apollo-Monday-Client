@@ -1,4 +1,4 @@
-export const ROOT_DOMAIN = ".prestaging.us.konnectify.dev"; // .prestaging.us.konnectify.dev | .stack5.us.konnectify.dev
+export const ROOT_DOMAIN = ".konnectifyapp.co"; //".staging.us.konnectify.dev"; // .prestaging.us.konnectify.dev | .stack5.us.konnectify.dev
 export const API_PATH = "/ipaas/api";
 export const UI_PATH = "/ipaas/ui";
 
@@ -9,7 +9,8 @@ export const APP_IDS = {
 
 // ─── Secondary app config ────────────────────────────────────────────────────
 // Monday.com is the fixed primary app. SECONDARY_APP describes whichever app
-// it's currently paired with (Apollo today). This is the ONLY place you
+// it's currently paired with (Apollo today). This is the ONLY 
+// place you
 // need to edit to swap it out for Hubspot/etc.
 //
 // NOTE: swapping this alone does NOT swap the workflow template — see
@@ -44,7 +45,7 @@ export const SECONDARY_APP = {
   templateDescription: "Monday contacts -> Apollo sequences",
 } as const;
 
-export const templateFolderId = 6 as const;
+export const templateFolderId = 8 as const;
 export const orgId = "27" as const;
 export const projectId = "27" as const;
 
